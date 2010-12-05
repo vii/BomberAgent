@@ -4,19 +4,19 @@
     android:layout_width="fill_parent"
     android:layout_height="fill_parent">
 <ImageView android:layout_width="fill_parent" 
-    android:layout_height="fill_parent" 
-	android:scaleType="centerCrop"
+	android:layout_height="fill_parent"
+	android:scaleType="fitStart"
 	android:src="@drawable/congrats"/>
 
 <TextView
         android:layout_width="wrap_content" 
         android:layout_height="wrap_content" 
-        android:layout_gravity="center"
+        android:layout_gravity="center_horizontal|top"
 
-        android:padding="10dip"
+        android:padding="20dip"
         
-        android:textColor="#ffffffff"
-        android:textSize="100dip"
+        android:textColor="#021964"
+        android:textSize="120dip"
     	android:typeface="serif"
     	android:textStyle="bold"
     	android:id="@+id/score"

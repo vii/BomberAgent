@@ -8,6 +8,7 @@ import com.socialrank.BomberAgent.R;
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.PixelFormat;
+import android.graphics.Typeface;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -56,7 +57,7 @@ public class BomberAgent extends Activity implements SensorEventListener {
         vibrator = (Vibrator)getSystemService(Context.VIBRATOR_SERVICE);
         H = new Handler();
         
-        setContentView(R.layout.main);
+        setContentView(state);
     }
     private Runnable runFlightOver = new Runnable() {
     	public void run() {
@@ -97,6 +98,7 @@ public class BomberAgent extends Activity implements SensorEventListener {
         for(int sound : sounds)
         	MPS.put(sound,MediaPlayer.create(this, sound));
         
+        
         startClip();
     }
     public void onAccuracyChanged(Sensor sensor, int accuracy) {}
@@ -112,16 +114,6 @@ public class BomberAgent extends Activity implements SensorEventListener {
             	double a = d(values);
 	            double ad = Math.abs(a - SensorManager.GRAVITY_EARTH);
 	            if(ad > SensorManager.GRAVITY_EARTH/2) {
-	            	SensorEvent previous = sensors.get(event.sensor);
-	            	if(null != previous){
-	            		if(event.timestamp < sensors.get(event.sensor).timestamp) {
-	            			Log.d("BOMBER","In the future "+(event.timestamp - previous.timestamp));
-	            			
-	            		}
-	            		else
-	            			score += (ad * (event.timestamp - previous.timestamp))/1000000000;
-	            		
-	            	}
 	            	vibrator.cancel();
 	            	
 	            	
@@ -137,6 +129,17 @@ public class BomberAgent extends Activity implements SensorEventListener {
 	            	H.postDelayed(runFlightOver, 300);
 	            	
 	            }
+	            
+            	SensorEvent previous = sensors.get(event.sensor);
+            	if(null != previous){
+            		if(event.timestamp < sensors.get(event.sensor).timestamp) {
+            			Log.d("BOMBER","In the future "+(event.timestamp - previous.timestamp));
+            		}
+            		else {
+            			double dur = (event.timestamp - previous.timestamp)/1000000000.0;
+            			score += Math.abs(SensorManager.GRAVITY_EARTH - a) * dur;
+            		}
+            	}
 	            sensors.put(event.sensor, event);
             }
 
@@ -146,57 +149,89 @@ public class BomberAgent extends Activity implements SensorEventListener {
 
     int sfx(){
     	switch(state){
-    	case R.layout.main: return R.raw.main;
+    	//case R.layout.main: return R.raw.main;
     	case R.layout.fail: return R.raw.fail;
     	case R.layout.flying: return R.raw.flying;
     	case R.layout.congrats: return R.raw.congrats;
     	}
     	assert(false);
-    	return R.layout.main;
+    	return R.raw.flying;
     }
-    
+    static boolean isPlaying(MediaPlayer mp){
+    	try {
+    		return mp.isPlaying();
+    	} catch (IllegalStateException e) {
+    		return false;
+    	}
+    }
     void enterState(int s){
     	if(state == s)return;
-    	Log.d("BomberAgent","Entering state " + s);
+    	//Log.d("BomberAgent","Entering state " + s);
     	state = s;
+    	if(videoHolder != null){
+    		try {
+    			videoHolder.stopPlayback();
+    		}catch(Exception e) {
+    			Log.d("BomberAgent","video stopping failed",e);
+    		}
+    		videoHolder = null;
+    	}
     	for(MediaPlayer mp : MPS.values())
-    		if(mp.isPlaying()) {
-    			Log.d("BomberAgent","Stopping sound");
+    		if(isPlaying(mp)) {
+    			//Log.d("BomberAgent","Stopping sound");
     			mp.setOnCompletionListener(null);
-    			mp.stop();
     			
     			try {
+    				mp.stop();
 					mp.prepare();
 				} catch (IllegalStateException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
 				}
     		}
     	
     	setContentView(s);
     	
-    	if(state == R.layout.congrats) {
-    		TextView sv = (TextView)findViewById(R.id.score);
-    		sv.setText(""+(long)Math.ceil(10*score));
+    	switch(state){
+    	case R.layout.congrats: 
+    		showScore();
+    		break;
+    	case R.layout.main:
+    		score = 0;
+    		break;
     	}
     	
     	startClip();
-    	score = 0;
     }
     
+    void showScore(){
+    	TextView sv = (TextView)findViewById(R.id.score);
+		 	
+    	try {
+    		Typeface typeface = Typeface.createFromAsset(getAssets(), "fonts/scorefont.ttf");
+        	Log.d("BomberAgent","typeface " + typeface);
+        	sv.setTypeface(typeface);
+    	}catch(Exception e){
+    		Log.d("BomberAgent","failed to set typeface",e);
+    	}
+        Log.d("BomberAgent","score " + score);
+        sv.setText(""+(long)Math.ceil(100*score));
+    }
+    
+    VideoView videoHolder = null;
+    
     void doneClip(){
-    	Log.d("BomberAgent","Finished clip in " + state);
+    	//Log.d("BomberAgent","Finished clip in " + state);
     	switch(state){
+    	case R.layout.intro:
+    		enterState(R.layout.main);
+    		return;
     	case R.layout.main: 
     		enterState(R.layout.fail);
     		return;
     	case R.layout.flying:
     		return;
     	case R.layout.fail:
-    		enterState(R.layout.main);
+    		enterState(R.layout.intro);
     		return;
     	case R.layout.congrats:
     		enterState(R.layout.main);
@@ -205,12 +240,40 @@ public class BomberAgent extends Activity implements SensorEventListener {
     }
     
     void startClip(){
-    	MediaPlayer mp = MPS.get(sfx());
-    	mp.setOnCompletionListener(new OnCompletionListener(){
+    	
+    	OnCompletionListener done = new OnCompletionListener(){
     		public void onCompletion(MediaPlayer mp) {
 				doneClip();
     		}
-    	});
+    	};
+    
+    	int clipno = R.raw.main;
+    	switch(state) {
+    	case R.layout.intro:
+    		videoHolder = (VideoView)findViewById(R.id.videointro);
+    		clipno = R.raw.intro;
+    		break;
+    	case R.layout.main:
+    		videoHolder = (VideoView)findViewById(R.id.videomain);
+    	}
+    	
+    	if(videoHolder != null){
+		    
+			videoHolder.setVideoURI(Uri.parse("android.resource://com.socialrank.BomberAgent/" + clipno));
+		    
+			videoHolder.setOnCompletionListener(done);
+			videoHolder.start();
+    		return;
+    	}
+    	
+    	MediaPlayer mp = MPS.get(sfx());
+    	if(mp == null) {
+    		Log.d("BomberAgent","no clip for state " + state);
+    		doneClip();
+    		return;
+    	}
+    	
+    	mp.setOnCompletionListener(done);
     	
     	mp.start();
     
