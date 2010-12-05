@@ -41,6 +41,8 @@ public class BomberAgent extends Activity implements SensorEventListener {
 	PowerManager.WakeLock awaker = null;	
 	HashMap<Integer,MediaPlayer> MPS = new HashMap<Integer,MediaPlayer>();
 	HashMap<Sensor,SensorEvent> sensors = new HashMap<Sensor,SensorEvent>();
+	static final long[]vibrator_pattern = {3000,3100, 3300,3400, 3500,3600};
+	static final int vibrator_repeat = 4;
 	
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -167,6 +169,13 @@ public class BomberAgent extends Activity implements SensorEventListener {
     void enterState(int s){
     	if(state == s)return;
     	//Log.d("BomberAgent","Entering state " + s);
+    	
+    	try {
+    		vibrator.cancel();
+    	}catch(Exception e){
+    		Log.d("BomberAgent","cancel vibration",e);
+    	}
+    	
     	state = s;
     	if(videoHolder != null){
     		try {
@@ -184,8 +193,8 @@ public class BomberAgent extends Activity implements SensorEventListener {
     			try {
     				mp.stop();
 					mp.prepare();
-				} catch (IllegalStateException e) {
-				} catch (IOException e) {
+				} catch (Exception e) {
+					Log.d("BomberAgent","stopping media player in state "+s,e);
 				}
     		}
     	
@@ -195,8 +204,20 @@ public class BomberAgent extends Activity implements SensorEventListener {
     	case R.layout.congrats: 
     		showScore();
     		break;
+    	case R.layout.fail:
+    		try {
+    			vibrator.vibrate(100000);
+    		}catch(Exception e){
+        		Log.d("BomberAgent","full vibration",e);
+        	}
+    		break;
     	case R.layout.main:
     		score = 0;
+    		try {
+    			vibrator.vibrate(vibrator_pattern, vibrator_repeat);
+    		}catch(Exception e){
+        		Log.d("BomberAgent","pattern vibration",e);
+        	}
     		break;
     	}
     	
@@ -258,11 +279,16 @@ public class BomberAgent extends Activity implements SensorEventListener {
     	}
     	
     	if(videoHolder != null){
-		    
-			videoHolder.setVideoURI(Uri.parse("android.resource://com.socialrank.BomberAgent/" + clipno));
-		    
-			videoHolder.setOnCompletionListener(done);
-			videoHolder.start();
+    		videoHolder.setOnCompletionListener(done);
+    		
+		   	try {
+		   		videoHolder.setVideoURI(Uri.parse("android.resource://com.socialrank.BomberAgent/" + clipno));
+		   		videoHolder.start();
+		   	}catch(Exception e){
+		   		Log.d("BomberAgent","video failed in " + state,e);
+		   		doneClip();
+		   	}
+		   	 			
     		return;
     	}
     	
@@ -275,9 +301,13 @@ public class BomberAgent extends Activity implements SensorEventListener {
     	
     	mp.setOnCompletionListener(done);
     	
-    	mp.start();
-    
-    }   
+    	try {
+    		mp.start();
+    	} catch (Exception e) {
+    		Log.d("BomberAgent","playing failed in " + state,e);
+    		doneClip();
+    	}    
+    }  
     
     public static double d(float[]values){
     	double ret = 0;
